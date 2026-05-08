@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INSS — Controle de Parcelamentos</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --accent: #1a7f64;
+    --accent2: #3fb68b;
+    --accent-glow: rgba(63,182,139,0.12);
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --text-dim: #484f58;
+    --danger: #f85149;
+    --warn: #d29922;
+    --blue: #388bfd;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .logo-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    font-family: var(--mono);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* LAYOUT */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .page-sub {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 32px;
+    font-family: var(--mono);
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  .tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: var(--sans);
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--accent2);
+    border-bottom-color: var(--accent2);
+  }
+
+  /* PANELS */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    background: var(--accent2);
+    border-radius: 2px;
+  }
+
+  /* FORM */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+  label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+
+  input, select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: var(--mono);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+  }
+
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  input::placeholder { color: var(--text-dim); }
+
+  /* CONTRACTS SECTION */
+  .contracts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .contracts-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+
+  .contract-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: end;
+  }
+
+  /* BUTTONS */
+  .btn {
+    border: none;
+    border-radius: 5px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent2); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--accent2); color: var(--accent2); background: var(--accent-glow); }
+
+  .btn-danger-ghost {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid transparent;
+    padding: 9px 10px;
+  }
+  .btn-danger-ghost:hover { background: rgba(248,81,73,0.1); }
+
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* PREVIEW SECTION */
+  .preview-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-top: 16px;
+  }
+
+  .preview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .preview-row:last-child { border-bottom: none; }
+
+  .preview-label { color: var(--text-muted); }
+  .preview-value {
+    font-family: var(--mono);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .preview-value.highlight { color: var(--accent2); font-size: 14px; }
+
+  /* TABLE */
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 11px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover { background: var(--surface2); }
+
+  td.text-right { text-align: right; }
+  td.muted { color: var(--text-muted); font-size: 12px; }
+  td.accent { color: var(--accent2); font-weight: 600; }
+  td.warn { color: var(--warn); }
+  td.label-col { font-family: var(--sans); font-weight: 500; color: var(--text); }
+
+  /* BADGE */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--mono);
+  }
+  .badge-green { background: rgba(63,182,139,0.15); color: var(--accent2); }
+  .badge-blue { background: rgba(56,139,253,0.15); color: var(--blue); }
+
+  /* STAT CARDS */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: var(--text);
+  }
+
+  .stat-value.green { color: var(--accent2); }
+  .stat-value.blue { color: var(--blue); }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px;
+    width: 90%;
+    max-width: 740px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+
+  .modal-title { font-size: 16px; font-weight: 600; }
+
+  /* ALERTS */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .alert-info {
+    background: rgba(56,139,253,0.1);
+    border: 1px solid rgba(56,139,253,0.3);
+    color: #79c0ff;
+  }
+
+  /* EMPTY STATE */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--text-dim); }
+  .empty-sub { font-size: 13px; }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* TOTAL ROW */
+  .total-row td { font-weight: 700; color: var(--text) !important; background: var(--surface2); border-top: 2px solid var(--border) !important; }
+
+  /* PARCELA DETAIL */
+  .detail-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    margin-right: 6px;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 7px;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--accent2);
+    display: none;
+    z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    font-family: var(--mono);
+  }
+  .toast.show { display: block; animation: fadeInUp 0.2s ease; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-badge">INSS</span>
+    <span>Sistema de Controle de Parcelamentos</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Exportar JSON</button>
+    <button class="btn btn-primary btn-sm" onclick="openNewParcelamento()">+ Novo Parcelamento</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="page-title">Parcelamentos INSS</div>
+  <div class="page-sub">Controle proporcional por contrato</div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('dashboard', this)">Dashboard</button>
+    <button class="tab" onclick="setTab('mensal', this)">Resumo Mensal</button>
+    <button class="tab" onclick="setTab('parcelas', this)">Parcelas Pagas</button>
+    <button class="tab" onclick="setTab('parcelamentos', this)">Parcelamentos</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="panel active" id="panel-dashboard">
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Parcelamentos</div>
+        <div class="stat-value blue" id="stat-total-parc">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Parcelado</div>
+        <div class="stat-value" id="stat-total-valor">R$ 0,00</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Parcelas Pagas</div>
+        <div class="stat-value green" id="stat-parcelas-pagas">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Pago</div>
+        <div class="stat-value green" id="stat-total-pago">R$ 0,00</div>
+      </div>
+    </div>
+    <div id="dashboard-list"></div>
+  </div>
+
+  <!-- RESUMO MENSAL -->
+  <div class="panel" id="panel-mensal">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+      <div>
+        <div style="font-size:15px;font-weight:600;">Resumo Mensal por Contrato</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Consolidado de todos os parcelamentos — parcela + juros por contrato em cada mês</div>
+      </div>
+      <select id="filtro-ano" style="background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px 12px;font-size:13px;font-family:var(--sans);cursor:pointer;" onchange="renderMensal()">
+        <option value="">Todos os anos</option>
+      </select>
+    </div>
+    <div id="mensal-content"></div>
+  </div>
+
+  <!-- PARCELAS PAGAS -->
+  <div class="panel" id="panel-parcelas">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div>
+        <div style="font-size:15px;font-weight:600;">Registro de Parcelas Pagas</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Adicione cada pagamento com valor e juros</div>
+      </div>
+      <button class="btn btn-primary" onclick="openNovaParcela()">+ Registrar Parcela</button>
+    </div>
+    <div class="table-wrapper">
+      <table id="table-parcelas">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Parcelamento</th>
+            <th>Nº Parcela</th>
+            <th>Valor Pago</th>
+            <th>Prop. EMSERH</th>
+            <th>Prop. UPA Terra Firme</th>
+            <th>Prop. SEDE</th>
+            <th>Juros Atualizado</th>
+            <th>Juros EMSERH</th>
+            <th>Juros UPA</th>
+            <th>Juros SEDE</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-parcelas">
+          <tr><td colspan="12"><div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Nenhuma parcela registrada</div><div class="empty-sub">Clique em "Registrar Parcela" para começar</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PARCELAMENTOS -->
+  <div class="panel" id="panel-parcelamentos">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div>
+        <div style="font-size:15px;font-weight:600;">Parcelamentos Cadastrados</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Gerencie os parcelamentos e seus contratos</div>
+      </div>
+      <button class="btn btn-primary" onclick="openNewParcelamento()">+ Novo Parcelamento</button>
+    </div>
+    <div id="list-parcelamentos">
+      <div class="empty"><div class="empty-icon">📁</div><div class="empty-title">Nenhum parcelamento cadastrado</div><div class="empty-sub">Clique em "Novo Parcelamento" para começar</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NOVO PARCELAMENTO -->
+<div class="modal-overlay" id="modal-parcelamento">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Cadastrar Parcelamento</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-parcelamento')">✕ Fechar</button>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1/-1">
+        <label>Nome / Identificação do Parcelamento</label>
+        <input type="text" id="parc-nome" placeholder="Ex: Parcelamento Janeiro 2025">
+      </div>
+      <div class="form-group">
+        <label>Valor Total do Parcelamento (R$)</label>
+        <input type="text" id="parc-valor-total" placeholder="10.387.166,92" oninput="calcPreview()" onblur="formatOnBlur(this)">
+      </div>
+      <div class="form-group">
+        <label>Valor Base da Parcela (R$)</label>
+        <input type="text" id="parc-valor-parcela" placeholder="209.474,55" oninput="calcPreview()" onblur="formatOnBlur(this)">
+      </div>
+      <div class="form-group">
+        <label>Número Total de Parcelas</label>
+        <input type="number" id="parc-num-parcelas" placeholder="60" min="1">
+      </div>
+      <div class="form-group">
+        <label>Data de Início</label>
+        <input type="date" id="parc-data-inicio">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="contracts-header">
+      <span class="contracts-label">CONTRATOS VINCULADOS</span>
+      <button class="btn btn-ghost btn-sm" onclick="addContractRow()">+ Adicionar Contrato</button>
+    </div>
+
+    <div id="contracts-container"></div>
+
+    <div class="preview-box" id="preview-box" style="display:none">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);margin-bottom:10px;font-weight:600;">Proporcional por Contrato (na parcela base)</div>
+      <div id="preview-rows"></div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button class="btn btn-ghost" onclick="closeModal('modal-parcelamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveParcelamento()">Salvar Parcelamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: REGISTRAR PARCELA PAGA -->
+<div class="modal-overlay" id="modal-parcela">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Registrar Parcela Paga</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-parcela')">✕ Fechar</button>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Parcelamento</label>
+        <select id="parcela-parcelamento" onchange="onSelectParcelamento()">
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Nº da Parcela</label>
+        <input type="number" id="parcela-num" placeholder="1" min="1">
+      </div>
+      <div class="form-group">
+        <label>Data do Pagamento</label>
+        <input type="date" id="parcela-data">
+      </div>
+      <div class="form-group">
+        <label>Valor Pago (R$)</label>
+        <input type="text" id="parcela-valor" placeholder="209.474,55" oninput="calcParcelaPreview()" onblur="formatOnBlur(this)">
+      </div>
+      <div class="form-group">
+        <label>Juros / Atualização (R$)</label>
+        <input type="text" id="parcela-juros" placeholder="2.094,74" oninput="calcParcelaPreview()" onblur="formatOnBlur(this)">
+      </div>
+    </div>
+
+    <div class="preview-box" id="parcela-preview" style="display:none">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);margin-bottom:10px;font-weight:600;">Cálculo Proporcional</div>
+      <div id="parcela-preview-rows"></div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button class="btn btn-ghost" onclick="closeModal('modal-parcela')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveParcela()">Salvar Parcela</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────
+let state = JSON.parse(localStorage.getItem('inss_state') || 'null') || {
+  parcelamentos: [],
+  parcelas: []
+};
+
+// Seed with example if empty
+if (state.parcelamentos.length === 0) {
+  state.parcelamentos.push({
+    id: 'p1',
+    nome: 'Parcelamento Janeiro 2025',
+    valorTotal: 10387166.92,
+    valorParcela: 209474.55,
+    numParcelas: 60,
+    dataInicio: '2025-03-12',
+    contratos: [
+      { nome: 'EMSERH', valor: 10156786.55 },
+      { nome: 'UPA Terra Firme', valor: 215529.60 },
+      { nome: 'SEDE', valor: 14850.77 }
+    ]
+  });
+
+  state.parcelas.push({
+    id: 'parc1',
+    parcelamentoId: 'p1',
+    num: 1,
+    data: '2025-03-12',
+    valorPago: 209474.55,
+    juros: 0,
+    proporcional: [
+      { nome: 'EMSERH', valor: 204828.55, juros: 0 },
+      { nome: 'UPA Terra Firme', valor: 4346.51, juros: 0 },
+      { nome: 'SEDE', valor: 299.49, juros: 0 }
+    ]
+  });
+
+  state.parcelas.push({
+    id: 'parc2',
+    parcelamentoId: 'p1',
+    num: 2,
+    data: '2025-04-30',
+    valorPago: 211569.29,
+    juros: 2094.74,
+    proporcional: [
+      { nome: 'EMSERH', valor: 206876.83, juros: 2048.28 },
+      { nome: 'UPA Terra Firme', valor: 4389.98, juros: 43.47 },
+      { nome: 'SEDE', valor: 302.49, juros: 2.99 }
+    ]
+  });
+
+  saveState();
+}
+
+function saveState() {
+  localStorage.setItem('inss_state', JSON.stringify(state));
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function parseBR(str) {
+  if (!str) return 0;
+  const s = String(str).replace(/\./g, '').replace(',', '.');
+  return parseFloat(s) || 0;
+}
+
+function fmtBR(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtBRShort(n) {
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatOnBlur(el) {
+  const v = parseBR(el.value);
+  if (v > 0) el.value = fmtBRShort(v);
+}
+
+function fmtDate(d) {
+  if (!d) return '-';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+function genId() {
+  return 'id_' + Math.random().toString(36).substr(2, 9);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─── TABS ─────────────────────────────────────────────────────
+function setTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'mensal') { populateAnoFiltro(); renderMensal(); }
+  if (name === 'parcelas') renderTabelaParcelas();
+  if (name === 'parcelamentos') renderParcelamentos();
+}
+
+// ─── MODAL ────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ─── PARCELAMENTO MODAL ───────────────────────────────────────
+let editingParcelamentoId = null;
+
+function openNewParcelamento() {
+  editingParcelamentoId = null;
+  document.getElementById('parc-nome').value = '';
+  document.getElementById('parc-valor-total').value = '';
+  document.getElementById('parc-valor-parcela').value = '';
+  document.getElementById('parc-num-parcelas').value = '';
+  document.getElementById('parc-data-inicio').value = '';
+  document.getElementById('contracts-container').innerHTML = '';
+  document.getElementById('preview-box').style.display = 'none';
+  addContractRow(); addContractRow(); addContractRow();
+  openModal('modal-parcelamento');
+}
+
+function addContractRow(nome='', valor='') {
+  const cc = document.getElementById('contracts-container');
+  const div = document.createElement('div');
+  div.className = 'contract-row';
+  div.innerHTML = `
+    <div class="form-group">
+      <label>Nome do Contrato</label>
+      <input type="text" class="contract-name" placeholder="Ex: EMSERH" value="${nome}" oninput="calcPreview()">
+    </div>
+    <div class="form-group">
+      <label>Valor no Parcelamento (R$)</label>
+      <input type="text" class="contract-val" placeholder="10.156.786,55" value="${valor}" oninput="calcPreview()" onblur="formatOnBlur(this)">
+    </div>
+    <button class="btn btn-danger-ghost" onclick="this.parentElement.remove(); calcPreview()">✕</button>
+  `;
+  cc.appendChild(div);
+}
+
+function calcPreview() {
+  const totalParcela = parseBR(document.getElementById('parc-valor-parcela').value);
+  const totalParcelamento = parseBR(document.getElementById('parc-valor-total').value);
+
+  const names = [...document.querySelectorAll('.contract-name')].map(x => x.value.trim());
+  const vals = [...document.querySelectorAll('.contract-val')].map(x => parseBR(x.value));
+  const totalContratos = vals.reduce((a, b) => a + b, 0);
+
+  if (totalParcela <= 0 || totalContratos <= 0) {
+    document.getElementById('preview-box').style.display = 'none';
+    return;
+  }
+
+  let html = '';
+  let totalProp = 0;
+  names.forEach((n, i) => {
+    if (!n || vals[i] <= 0) return;
+    const prop = (vals[i] / totalContratos) * totalParcela;
+    totalProp += prop;
+    html += `<div class="preview-row"><span class="preview-label">${n}</span><span class="preview-value">${fmtBR(prop)}</span></div>`;
+  });
+  html += `<div class="preview-row"><span class="preview-label" style="font-weight:600;color:var(--text)">Total</span><span class="preview-value highlight">${fmtBR(totalProp)}</span></div>`;
+
+  document.getElementById('preview-rows').innerHTML = html;
+  document.getElementById('preview-box').style.display = 'block';
+}
+
+function saveParcelamento() {
+  const nome = document.getElementById('parc-nome').value.trim();
+  const valorTotal = parseBR(document.getElementById('parc-valor-total').value);
+  const valorParcela = parseBR(document.getElementById('parc-valor-parcela').value);
+  const numParcelas = parseInt(document.getElementById('parc-num-parcelas').value) || 0;
+  const dataInicio = document.getElementById('parc-data-inicio').value;
+
+  if (!nome || valorTotal <= 0 || valorParcela <= 0) {
+    alert('Preencha nome, valor total e valor da parcela.');
+    return;
+  }
+
+  const names = [...document.querySelectorAll('.contract-name')].map(x => x.value.trim());
+  const vals = [...document.querySelectorAll('.contract-val')].map(x => parseBR(x.value));
+  const contratos = names.map((n, i) => ({ nome: n, valor: vals[i] })).filter(c => c.nome && c.valor > 0);
+
+  if (contratos.length === 0) {
+    alert('Adicione ao menos um contrato com nome e valor.');
+    return;
+  }
+
+  const p = { id: editingParcelamentoId || genId(), nome, valorTotal, valorParcela, numParcelas, dataInicio, contratos };
+
+  if (editingParcelamentoId) {
+    state.parcelamentos = state.parcelamentos.map(x => x.id === editingParcelamentoId ? p : x);
+  } else {
+    state.parcelamentos.push(p);
+  }
+
+  saveState();
+  closeModal('modal-parcelamento');
+  renderParcelamentos();
+  renderDashboard();
+  showToast('✓ Parcelamento salvo!');
+}
+
+// ─── PARCELA MODAL ────────────────────────────────────────────
+function openNovaParcela() {
+  document.getElementById('parcela-parcelamento').innerHTML = '<option value="">Selecione...</option>';
+  state.parcelamentos.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.nome;
+    document.getElementById('parcela-parcelamento').appendChild(opt);
+  });
+  document.getElementById('parcela-num').value = '';
+  document.getElementById('parcela-data').value = new Date().toISOString().split('T')[0];
+  document.getElementById('parcela-valor').value = '';
+  document.getElementById('parcela-juros').value = '';
+  document.getElementById('parcela-preview').style.display = 'none';
+  openModal('modal-parcela');
+}
+
+function onSelectParcelamento() {
+  const pid = document.getElementById('parcela-parcelamento').value;
+  if (!pid) return;
+  const p = state.parcelamentos.find(x => x.id === pid);
+  const paid = state.parcelas.filter(x => x.parcelamentoId === pid).map(x => x.num);
+  const next = paid.length > 0 ? Math.max(...paid) + 1 : 1;
+  document.getElementById('parcela-num').value = next;
+  document.getElementById('parcela-valor').value = fmtBRShort(p.valorParcela);
+  calcParcelaPreview();
+}
+
+function calcParcelaPreview() {
+  const pid = document.getElementById('parcela-parcelamento').value;
+  if (!pid) return;
+  const p = state.parcelamentos.find(x => x.id === pid);
+  if (!p) return;
+
+  const valorPago = parseBR(document.getElementById('parcela-valor').value);
+  const juros = parseBR(document.getElementById('parcela-juros').value);
+  const totalContratos = p.contratos.reduce((a, c) => a + c.valor, 0);
+
+  if (valorPago <= 0) { document.getElementById('parcela-preview').style.display = 'none'; return; }
+
+  let html = '';
+  p.contratos.forEach(c => {
+    const prop = c.valor / totalContratos;
+    const valorProp = prop * valorPago;
+    const jurosProp = prop * juros;
+    html += `<div class="preview-row">
+      <span class="preview-label">${c.nome}</span>
+      <span style="display:flex;gap:24px;">
+        <span class="preview-value">${fmtBR(valorProp)}</span>
+        <span class="preview-value" style="color:var(--warn)">${juros > 0 ? fmtBR(jurosProp) + ' juros' : '-'}</span>
+      </span>
+    </div>`;
+  });
+
+  document.getElementById('parcela-preview-rows').innerHTML = html;
+  document.getElementById('parcela-preview').style.display = 'block';
+}
+
+function saveParcela() {
+  const pid = document.getElementById('parcela-parcelamento').value;
+  const num = parseInt(document.getElementById('parcela-num').value);
+  const data = document.getElementById('parcela-data').value;
+  const valorPago = parseBR(document.getElementById('parcela-valor').value);
+  const juros = parseBR(document.getElementById('parcela-juros').value);
+
+  if (!pid || !num || !data || valorPago <= 0) {
+    alert('Preencha todos os campos obrigatórios.');
+    return;
+  }
+
+  const p = state.parcelamentos.find(x => x.id === pid);
+  const totalContratos = p.contratos.reduce((a, c) => a + c.valor, 0);
+
+  const proporcional = p.contratos.map(c => {
+    const prop = c.valor / totalContratos;
+    return { nome: c.nome, valor: prop * valorPago, juros: prop * juros };
+  });
+
+  state.parcelas.push({ id: genId(), parcelamentoId: pid, num, data, valorPago, juros, proporcional });
+  saveState();
+  closeModal('modal-parcela');
+  renderTabelaParcelas();
+  renderDashboard();
+  showToast('✓ Parcela registrada!');
+}
+
+// ─── RENDER: TABELA PARCELAS ──────────────────────────────────
+function renderTabelaParcelas() {
+  const tbody = document.getElementById('tbody-parcelas');
+  if (state.parcelas.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="12"><div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Nenhuma parcela registrada</div><div class="empty-sub">Clique em "Registrar Parcela" para começar</div></div></td></tr>';
+    return;
+  }
+
+  // Sort by date
+  const sorted = [...state.parcelas].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+  tbody.innerHTML = sorted.map(parc => {
+    const p = state.parcelamentos.find(x => x.id === parc.parcelamentoId);
+    const pNome = p ? p.nome : '—';
+
+    // Build proporcional cells (up to 3 contracts)
+    const contracts = parc.proporcional || [];
+    const c0 = contracts[0] || {};
+    const c1 = contracts[1] || {};
+    const c2 = contracts[2] || {};
+
+    return `<tr>
+      <td>${fmtDate(parc.data)}</td>
+      <td class="label-col" style="font-family:var(--sans);max-width:160px;overflow:hidden;text-overflow:ellipsis">${pNome}</td>
+      <td style="text-align:center"><span class="badge badge-blue">${parc.num}</span></td>
+      <td class="accent">${fmtBR(parc.valorPago)}</td>
+      <td>${c0.valor != null ? fmtBR(c0.valor) : '-'}</td>
+      <td>${c1.valor != null ? fmtBR(c1.valor) : '-'}</td>
+      <td>${c2.valor != null ? fmtBR(c2.valor) : '-'}</td>
+      <td class="${parc.juros > 0 ? 'warn' : 'muted'}">${parc.juros > 0 ? fmtBR(parc.juros) : '-'}</td>
+      <td>${c0.juros > 0 ? fmtBR(c0.juros) : '-'}</td>
+      <td>${c1.juros > 0 ? fmtBR(c1.juros) : '-'}</td>
+      <td>${c2.juros > 0 ? fmtBR(c2.juros) : '-'}</td>
+      <td><button class="btn btn-danger-ghost btn-sm" onclick="deleteParcela('${parc.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function deleteParcela(id) {
+  if (!confirm('Remover esta parcela?')) return;
+  state.parcelas = state.parcelas.filter(x => x.id !== id);
+  saveState();
+  renderTabelaParcelas();
+  renderDashboard();
+  showToast('Parcela removida.');
+}
+
+// ─── RENDER: PARCELAMENTOS ────────────────────────────────────
+function renderParcelamentos() {
+  const el = document.getElementById('list-parcelamentos');
+  if (state.parcelamentos.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📁</div><div class="empty-title">Nenhum parcelamento cadastrado</div><div class="empty-sub">Clique em "Novo Parcelamento" para começar</div></div>';
+    return;
+  }
+
+  el.innerHTML = state.parcelamentos.map(p => {
+    const pagas = state.parcelas.filter(x => x.parcelamentoId === p.id).length;
+    const totalContratos = p.contratos.reduce((a, c) => a + c.valor, 0);
+
+    const rows = p.contratos.map(c => {
+      const prop = (c.valor / totalContratos) * p.valorParcela;
+      const pct = ((c.valor / totalContratos) * 100).toFixed(2);
+      return `<tr>
+        <td class="label-col">${c.nome}</td>
+        <td>${fmtBR(c.valor)}</td>
+        <td>${pct}%</td>
+        <td class="accent">${fmtBR(prop)}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div>
+          <div style="font-size:16px;font-weight:600;margin-bottom:6px;">${p.nome}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="detail-badge">Total: ${fmtBR(p.valorTotal)}</span>
+            <span class="detail-badge">Parcela base: ${fmtBR(p.valorParcela)}</span>
+            <span class="detail-badge">${p.numParcelas || '?'} parcelas</span>
+            <span class="detail-badge">Início: ${fmtDate(p.dataInicio)}</span>
+            <span class="badge badge-green">${pagas} pagas</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="editParcelamento('${p.id}')">✎ Editar</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteParcelamento('${p.id}')">✕</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Contrato</th><th>Valor no Parcelamento</th><th>%</th><th>Prop. na Parcela Base</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function editParcelamento(id) {
+  const p = state.parcelamentos.find(x => x.id === id);
+  if (!p) return;
+  editingParcelamentoId = id;
+  document.getElementById('parc-nome').value = p.nome;
+  document.getElementById('parc-valor-total').value = fmtBRShort(p.valorTotal);
+  document.getElementById('parc-valor-parcela').value = fmtBRShort(p.valorParcela);
+  document.getElementById('parc-num-parcelas').value = p.numParcelas || '';
+  document.getElementById('parc-data-inicio').value = p.dataInicio || '';
+  document.getElementById('contracts-container').innerHTML = '';
+  p.contratos.forEach(c => addContractRow(c.nome, fmtBRShort(c.valor)));
+  calcPreview();
+  openModal('modal-parcelamento');
+}
+
+function deleteParcelamento(id) {
+  if (!confirm('Remover este parcelamento e todas as suas parcelas?')) return;
+  state.parcelamentos = state.parcelamentos.filter(x => x.id !== id);
+  state.parcelas = state.parcelas.filter(x => x.parcelamentoId !== id);
+  saveState();
+  renderParcelamentos();
+  renderDashboard();
+  showToast('Parcelamento removido.');
+}
+
+// ─── RENDER: DASHBOARD ────────────────────────────────────────
+function renderDashboard() {
+  document.getElementById('stat-total-parc').textContent = state.parcelamentos.length;
+  const totalValor = state.parcelamentos.reduce((a, p) => a + p.valorTotal, 0);
+  document.getElementById('stat-total-valor').textContent = fmtBR(totalValor);
+  document.getElementById('stat-parcelas-pagas').textContent = state.parcelas.length;
+  const totalPago = state.parcelas.reduce((a, p) => a + p.valorPago, 0);
+  document.getElementById('stat-total-pago').textContent = fmtBR(totalPago);
+
+  const el = document.getElementById('dashboard-list');
+
+  if (state.parcelamentos.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🏛</div><div class="empty-title">Nenhum dado ainda</div><div class="empty-sub">Cadastre um parcelamento para começar</div></div>';
+    return;
+  }
+
+  el.innerHTML = state.parcelamentos.map(p => {
+    const parcelas = state.parcelas.filter(x => x.parcelamentoId === p.id).sort((a, b) => new Date(a.data) - new Date(b.data));
+    const totalContratos = p.contratos.reduce((a, c) => a + c.valor, 0);
+
+    const headerRow = p.contratos.map(c => `<th>Prop. ${c.nome}</th>`).join('') +
+      `<th>Juros Total</th>` + p.contratos.map(c => `<th>Juros ${c.nome}</th>`).join('');
+
+    const dataRows = parcelas.map(parc => {
+      const propCells = p.contratos.map((c, i) => {
+        const prop = parc.proporcional ? parc.proporcional.find(x => x.nome === c.nome) : null;
+        return `<td>${prop ? fmtBR(prop.valor) : '-'}</td>`;
+      }).join('');
+
+      const jurosCells = p.contratos.map(c => {
+        const prop = parc.proporcional ? parc.proporcional.find(x => x.nome === c.nome) : null;
+        return `<td class="${prop && prop.juros > 0 ? 'warn' : 'muted'}">${prop && prop.juros > 0 ? fmtBR(prop.juros) : '-'}</td>`;
+      }).join('');
+
+      return `<tr>
+        <td>${fmtDate(parc.data)}</td>
+        <td style="text-align:center"><span class="badge badge-blue">${parc.num}</span></td>
+        <td class="accent">${fmtBR(parc.valorPago)}</td>
+        ${propCells}
+        <td class="${parc.juros > 0 ? 'warn' : 'muted'}">${parc.juros > 0 ? fmtBR(parc.juros) : '-'}</td>
+        ${jurosCells}
+      </tr>`;
+    }).join('');
+
+    // Totals
+    const totalPago = parcelas.reduce((a, x) => a + x.valorPago, 0);
+    const totalJuros = parcelas.reduce((a, x) => a + (x.juros || 0), 0);
+    const totalPropCells = p.contratos.map(c => {
+      const t = parcelas.reduce((a, parc) => {
+        const prop = parc.proporcional ? parc.proporcional.find(x => x.nome === c.nome) : null;
+        return a + (prop ? prop.valor : 0);
+      }, 0);
+      return `<td>${fmtBR(t)}</td>`;
+    }).join('');
+    const totalJurosCells = p.contratos.map(c => {
+      const t = parcelas.reduce((a, parc) => {
+        const prop = parc.proporcional ? parc.proporcional.find(x => x.nome === c.nome) : null;
+        return a + (prop ? prop.juros : 0);
+      }, 0);
+      return `<td>${t > 0 ? fmtBR(t) : '-'}</td>`;
+    }).join('');
+
+    const emptyMsg = parcelas.length === 0
+      ? `<tr><td colspan="20"><div style="text-align:center;padding:20px;color:var(--text-dim);font-size:12px;">Nenhuma parcela registrada para este parcelamento</div></td></tr>`
+      : '';
+
+    return `<div class="card">
+      <div class="card-title">${p.nome}</div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Data</th><th>Nº Parcela</th><th>Valor Pago</th>
+            ${headerRow}
+          </tr></thead>
+          <tbody>
+            ${emptyMsg}
+            ${dataRows}
+            ${parcelas.length > 0 ? `<tr class="total-row">
+              <td colspan="2" style="font-family:var(--sans)">TOTAL</td>
+              <td class="accent">${fmtBR(totalPago)}</td>
+              ${totalPropCells}
+              <td>${totalJuros > 0 ? fmtBR(totalJuros) : '-'}</td>
+              ${totalJurosCells}
+            </tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── EXPORT ───────────────────────────────────────────────────
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'parcelamentos_inss.json';
+  a.click();
+}
+
+// ─── RENDER: RESUMO MENSAL ────────────────────────────────────
+function populateAnoFiltro() {
+  const anos = [...new Set(state.parcelas.map(p => p.data ? p.data.split('-')[0] : null).filter(Boolean))].sort();
+  const sel = document.getElementById('filtro-ano');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos os anos</option>';
+  anos.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    if (a === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function renderMensal() {
+  const el = document.getElementById('mensal-content');
+  const anoFiltro = document.getElementById('filtro-ano').value;
+
+  const parcelas = state.parcelas.filter(p => {
+    if (!p.data) return false;
+    if (anoFiltro && p.data.split('-')[0] !== anoFiltro) return false;
+    return true;
+  });
+
+  if (parcelas.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Nenhuma parcela no período</div><div class="empty-sub">Registre parcelas pagas para ver o resumo mensal</div></div>';
+    return;
+  }
+
+  // Collect all unique contract names across all parcelamentos
+  const allContracts = [];
+  state.parcelamentos.forEach(p => {
+    p.contratos.forEach(c => {
+      if (!allContracts.includes(c.nome)) allContracts.push(c.nome);
+    });
+  });
+
+  // Build month map: { "2025-03": { EMSERH: {parcela, juros}, ... } }
+  const monthMap = {};
+  parcelas.forEach(parc => {
+    const ym = parc.data.substring(0, 7); // "2025-03"
+    if (!monthMap[ym]) monthMap[ym] = {};
+    (parc.proporcional || []).forEach(prop => {
+      if (!monthMap[ym][prop.nome]) monthMap[ym][prop.nome] = { parcela: 0, juros: 0, total: 0 };
+      monthMap[ym][prop.nome].parcela += prop.valor || 0;
+      monthMap[ym][prop.nome].juros += prop.juros || 0;
+      monthMap[ym][prop.nome].total += (prop.valor || 0) + (prop.juros || 0);
+    });
+  });
+
+  const months = Object.keys(monthMap).sort();
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  function fmtYM(ym) {
+    const [y, m] = ym.split('-');
+    return meses[parseInt(m) - 1] + ' ' + y;
+  }
+
+  // Grand totals per contract
+  const grandTotal = {};
+  allContracts.forEach(c => { grandTotal[c] = { parcela: 0, juros: 0, total: 0 }; });
+
+  months.forEach(ym => {
+    allContracts.forEach(c => {
+      const d = monthMap[ym][c] || { parcela: 0, juros: 0, total: 0 };
+      grandTotal[c].parcela += d.parcela;
+      grandTotal[c].juros += d.juros;
+      grandTotal[c].total += d.total;
+    });
+  });
+
+  // Build one big table
+  // Header: Mês | [ContA Parcela | ContA Juros | ContA Total] | [ContB ...] | Total Geral
+  const contractCols = allContracts.map(c =>
+    `<th colspan="3" style="text-align:center;border-left:1px solid var(--border)">${c}</th>`
+  ).join('');
+
+  const subCols = allContracts.map(() =>
+    `<th style="border-left:1px solid var(--border)">Parcela</th><th>Juros</th><th style="color:var(--accent2)">Total</th>`
+  ).join('');
+
+  const dataRows = months.map(ym => {
+    const rowTotalParcela = allContracts.reduce((a, c) => a + (monthMap[ym][c]?.parcela || 0), 0);
+    const rowTotalJuros = allContracts.reduce((a, c) => a + (monthMap[ym][c]?.juros || 0), 0);
+    const rowTotal = rowTotalParcela + rowTotalJuros;
+
+    const cells = allContracts.map(c => {
+      const d = monthMap[ym][c] || { parcela: 0, juros: 0, total: 0 };
+      return `<td style="border-left:1px solid var(--border)">${d.parcela > 0 ? fmtBR(d.parcela) : '<span style="color:var(--text-dim)">—</span>'}</td>
+              <td class="${d.juros > 0 ? 'warn' : ''}">${d.juros > 0 ? fmtBR(d.juros) : '<span style="color:var(--text-dim)">—</span>'}</td>
+              <td class="accent">${d.total > 0 ? fmtBR(d.total) : '<span style="color:var(--text-dim)">—</span>'}</td>`;
+    }).join('');
+
+    return `<tr>
+      <td class="label-col" style="font-family:var(--sans);white-space:nowrap">${fmtYM(ym)}</td>
+      ${cells}
+      <td style="border-left:2px solid var(--border);font-family:var(--mono)">${fmtBR(rowTotalParcela)}</td>
+      <td class="${rowTotalJuros > 0 ? 'warn' : 'muted'}">${rowTotalJuros > 0 ? fmtBR(rowTotalJuros) : '—'}</td>
+      <td class="accent" style="font-weight:700">${fmtBR(rowTotal)}</td>
+    </tr>`;
+  }).join('');
+
+  // Grand total row
+  const grandCells = allContracts.map(c =>
+    `<td style="border-left:1px solid var(--border)">${fmtBR(grandTotal[c].parcela)}</td>
+     <td class="${grandTotal[c].juros > 0 ? 'warn' : ''}">${grandTotal[c].juros > 0 ? fmtBR(grandTotal[c].juros) : '—'}</td>
+     <td class="accent">${fmtBR(grandTotal[c].total)}</td>`
+  ).join('');
+
+  const sumParcela = allContracts.reduce((a, c) => a + grandTotal[c].parcela, 0);
+  const sumJuros = allContracts.reduce((a, c) => a + grandTotal[c].juros, 0);
+  const sumTotal = sumParcela + sumJuros;
+
+  // Summary cards per contract
+  const summaryCards = allContracts.map(c => `
+    <div class="stat-card" style="border-color:var(--accent);min-width:180px">
+      <div class="stat-label">${c}</div>
+      <div style="margin-top:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span style="color:var(--text-muted)">Parcelas</span>
+          <span style="font-family:var(--mono);color:var(--text)">${fmtBR(grandTotal[c].parcela)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+          <span style="color:var(--text-muted)">Juros</span>
+          <span style="font-family:var(--mono);color:var(--warn)">${grandTotal[c].juros > 0 ? fmtBR(grandTotal[c].juros) : '—'}</span>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;justify-content:space-between;">
+          <span style="color:var(--text-muted);font-size:12px">Total</span>
+          <span style="font-family:var(--mono);color:var(--accent2);font-weight:700;font-size:14px">${fmtBR(grandTotal[c].total)}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:24px;">${summaryCards}</div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;">Detalhamento por Mês</span>
+        <span style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">${months.length} ${months.length === 1 ? 'mês' : 'meses'}</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2" style="vertical-align:middle;">Mês</th>
+              ${contractCols}
+              <th colspan="3" style="text-align:center;border-left:2px solid var(--border)">Total Geral</th>
+            </tr>
+            <tr>
+              ${subCols}
+              <th style="border-left:2px solid var(--border)">Parcelas</th>
+              <th>Juros</th>
+              <th style="color:var(--accent2)">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dataRows}
+            <tr class="total-row">
+              <td style="font-family:var(--sans)">TOTAL</td>
+              ${grandCells}
+              <td style="border-left:2px solid var(--border)">${fmtBR(sumParcela)}</td>
+              <td class="${sumJuros > 0 ? 'warn' : ''}">${sumJuros > 0 ? fmtBR(sumJuros) : '—'}</td>
+              <td class="accent">${fmtBR(sumTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+renderDashboard();
+</script>
+</body>
+</html>
