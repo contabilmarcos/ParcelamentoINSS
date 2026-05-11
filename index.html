@@ -539,6 +539,7 @@
           <option value="">Todos os anos</option>
         </select>
         <button class="btn btn-ghost" onclick="exportMensalXLSX()">⬇ Exportar XLSX</button>
+        <button class="btn btn-ghost" onclick="exportMensalPDF()">⬇ Exportar PDF</button>
       </div>
     </div>
     <div id="mensal-content"></div>
@@ -1656,6 +1657,332 @@ async function exportMensalXLSX() {
   XLSX.utils.book_append_sheet(wb, wsRaw, 'Parcelas Detalhadas');
 
   XLSX.writeFile(wb, fileName);
+  showToast('✓ Exportado: ' + fileName);
+}
+
+// ─── EXPORTAR RESUMO MENSAL PDF ───────────────────────────────
+async function exportMensalPDF() {
+  // Carrega jsPDF dinamicamente
+  if (typeof window.jspdf === 'undefined') {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Não foi possível carregar jsPDF.'));
+      document.head.appendChild(s);
+    });
+  }
+  if (typeof window.jspdf.jsPDF === 'undefined') {
+    alert('Erro ao carregar biblioteca de PDF.'); return;
+  }
+
+  const anoFiltro = document.getElementById('filtro-ano').value;
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const parcelas = state.parcelas.filter(p => {
+    if (!p.data) return false;
+    if (anoFiltro && p.data.split('-')[0] !== anoFiltro) return false;
+    return true;
+  });
+
+  if (parcelas.length === 0) {
+    alert('Nenhuma parcela no período selecionado para exportar.');
+    return;
+  }
+
+  const allContracts = [];
+  state.parcelamentos.forEach(p => {
+    p.contratos.forEach(c => {
+      if (!allContracts.includes(c.nome)) allContracts.push(c.nome);
+    });
+  });
+
+  // Montar monthMap
+  const monthMap = {};
+  parcelas.forEach(parc => {
+    const ym = parc.data.substring(0, 7);
+    if (!monthMap[ym]) monthMap[ym] = {};
+    (parc.proporcional || []).forEach(prop => {
+      if (!monthMap[ym][prop.nome]) monthMap[ym][prop.nome] = { parcela: 0, juros: 0, total: 0 };
+      monthMap[ym][prop.nome].parcela += prop.valor || 0;
+      monthMap[ym][prop.nome].juros   += prop.juros || 0;
+      monthMap[ym][prop.nome].total   += (prop.valor || 0) + (prop.juros || 0);
+    });
+  });
+
+  const months = Object.keys(monthMap).sort();
+
+  function fmtYM(ym) {
+    const [y, m] = ym.split('-');
+    return meses[parseInt(m) - 1] + '/' + y;
+  }
+
+  function n(v) { return (Math.round(v * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  const { jsPDF } = window.jspdf;
+
+  // Layout: landscape para caber as colunas
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();   // 297mm
+  const ph = doc.internal.pageSize.getHeight();  // 210mm
+
+  // ── Paleta ──
+  const C = {
+    bg:      [13,  17,  23],
+    surface: [22,  27,  34],
+    surface2:[28,  33,  40],
+    border:  [48,  54,  61],
+    accent:  [26, 127, 100],
+    accent2: [63, 182, 139],
+    warn:    [210,153, 34],
+    text:    [230, 237, 243],
+    muted:   [125, 133, 144],
+    white:   [255, 255, 255],
+  };
+
+  let y = 0;
+
+  // ── Cabeçalho da página ──
+  function drawPageHeader(pageNum) {
+    doc.setFillColor(...C.bg);
+    doc.rect(0, 0, pw, ph, 'F');
+
+    // Faixa topo
+    doc.setFillColor(...C.surface);
+    doc.rect(0, 0, pw, 18, 'F');
+    doc.setFillColor(...C.accent);
+    doc.rect(0, 0, 4, 18, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...C.text);
+    doc.text('INSS — Resumo Mensal por Contrato', 10, 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.muted);
+    const subtitle = anoFiltro ? `Ano: ${anoFiltro}` : 'Todos os períodos';
+    doc.text(subtitle, 10, 17);
+
+    // Data de geração + página
+    const now = new Date().toLocaleDateString('pt-BR');
+    doc.text(`Gerado em ${now}`, pw - 55, 12);
+    doc.text(`Página ${pageNum}`, pw - 20, 12, { align: 'right' });
+  }
+
+  // ── Tabela: calcular larguras ──
+  // Colunas: Mês | [Parcela Juros Total] por contrato | Total Geral (P J T)
+  const colMes = 28;
+  const colNum = 18; // largura de cada sub-coluna numérica
+  const nContracts = allContracts.length;
+  const totalCols = 1 + nContracts * 3 + 3;
+  const tableWidth = colMes + (nContracts * 3 + 3) * colNum;
+  const marginLeft = (pw - tableWidth) / 2;
+  const rowH = 7;
+  const headerH = 12; // 2 linhas de cabeçalho
+  const startY = 22;
+
+  let pageNum = 1;
+  drawPageHeader(pageNum);
+  y = startY;
+
+  // ── Cabeçalho da tabela ──
+  function drawTableHeader() {
+    // Linha 1: grupo de contratos
+    doc.setFillColor(...C.surface2);
+    doc.rect(marginLeft, y, tableWidth, rowH, 'F');
+    // Borda accent embaixo do header
+    doc.setDrawColor(...C.accent);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y + rowH, marginLeft + tableWidth, y + rowH);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.muted);
+
+    // "Mês"
+    doc.text('MÊS', marginLeft + colMes / 2, y + rowH - 2, { align: 'center' });
+
+    // Contratos
+    let cx = marginLeft + colMes;
+    allContracts.forEach(c => {
+      const gw = colNum * 3;
+      // Fundo levemente distinto para separar grupos
+      doc.setFillColor(...C.surface);
+      doc.rect(cx, y, gw, rowH, 'F');
+      doc.setTextColor(...C.accent2);
+      doc.text(c.toUpperCase(), cx + gw / 2, y + rowH - 2, { align: 'center' });
+      cx += gw;
+    });
+
+    // Total Geral
+    const tw = colNum * 3;
+    doc.setFillColor(...C.accent);
+    doc.rect(cx, y, tw, rowH, 'F');
+    doc.setTextColor(...C.white);
+    doc.text('TOTAL GERAL', cx + tw / 2, y + rowH - 2, { align: 'center' });
+
+    y += rowH;
+
+    // Linha 2: sub-colunas
+    doc.setFillColor(...C.surface2);
+    doc.rect(marginLeft, y, tableWidth, rowH - 1, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...C.muted);
+
+    cx = marginLeft + colMes;
+    const subCols = allContracts.length * 3 + 3;
+    for (let i = 0; i < subCols; i++) {
+      const labels = ['Parcela', 'Juros', 'Total'];
+      const lbl = labels[i % 3];
+      const isTotal = i % 3 === 2;
+      if (isTotal) doc.setTextColor(...C.accent2);
+      else doc.setTextColor(...C.muted);
+      doc.text(lbl, cx + colNum / 2, y + rowH - 2, { align: 'center' });
+      cx += colNum;
+    }
+
+    y += rowH - 1;
+
+    // Linha separadora
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.2);
+    doc.line(marginLeft, y, marginLeft + tableWidth, y);
+  }
+
+  drawTableHeader();
+
+  // ── Linhas de dados ──
+  months.forEach((ym, rowIdx) => {
+    // Nova página se necessário
+    if (y + rowH > ph - 12) {
+      doc.addPage();
+      pageNum++;
+      drawPageHeader(pageNum);
+      y = startY;
+      drawTableHeader();
+    }
+
+    const isEven = rowIdx % 2 === 0;
+    doc.setFillColor(...(isEven ? C.surface : C.bg));
+    doc.rect(marginLeft, y, tableWidth, rowH, 'F');
+
+    // Mês
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...C.text);
+    doc.text(fmtYM(ym), marginLeft + 3, y + rowH - 2);
+
+    let cx = marginLeft + colMes;
+    let rowP = 0, rowJ = 0;
+
+    allContracts.forEach(c => {
+      const d = monthMap[ym][c] || { parcela: 0, juros: 0, total: 0 };
+      rowP += d.parcela; rowJ += d.juros;
+
+      // Parcela
+      doc.setTextColor(...C.text);
+      doc.setFontSize(6.5);
+      doc.text(d.parcela > 0 ? n(d.parcela) : '—', cx + colNum - 1, y + rowH - 2, { align: 'right' });
+      cx += colNum;
+
+      // Juros
+      doc.setTextColor(...(d.juros > 0 ? C.warn : C.muted));
+      doc.text(d.juros > 0 ? n(d.juros) : '—', cx + colNum - 1, y + rowH - 2, { align: 'right' });
+      cx += colNum;
+
+      // Total contrato
+      doc.setTextColor(...C.accent2);
+      doc.setFont('helvetica', 'bold');
+      doc.text(d.total > 0 ? n(d.total) : '—', cx + colNum - 1, y + rowH - 2, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      cx += colNum;
+    });
+
+    // Totais da linha
+    const rowTotal = rowP + rowJ;
+    doc.setTextColor(...C.text);
+    doc.setFontSize(6.5);
+    doc.text(n(rowP), cx + colNum - 1, y + rowH - 2, { align: 'right' });
+    cx += colNum;
+    doc.setTextColor(...(rowJ > 0 ? C.warn : C.muted));
+    doc.text(rowJ > 0 ? n(rowJ) : '—', cx + colNum - 1, y + rowH - 2, { align: 'right' });
+    cx += colNum;
+    doc.setFillColor(...C.accent);
+    doc.rect(cx, y, colNum, rowH, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFont('helvetica', 'bold');
+    doc.text(n(rowTotal), cx + colNum - 1, y + rowH - 2, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+
+    // Linha separadora leve
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.1);
+    doc.line(marginLeft, y + rowH, marginLeft + tableWidth, y + rowH);
+
+    y += rowH;
+  });
+
+  // ── Linha de totais finais ──
+  if (y + rowH + 2 > ph - 12) {
+    doc.addPage();
+    pageNum++;
+    drawPageHeader(pageNum);
+    y = startY;
+  }
+
+  doc.setFillColor(...C.surface2);
+  doc.rect(marginLeft, y + 1, tableWidth, rowH, 'F');
+  doc.setDrawColor(...C.accent2);
+  doc.setLineWidth(0.4);
+  doc.line(marginLeft, y + 1, marginLeft + tableWidth, y + 1);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.accent2);
+  doc.text('TOTAL', marginLeft + 3, y + rowH - 1);
+
+  let cx = marginLeft + colMes;
+  let grandP = 0, grandJ = 0;
+  allContracts.forEach(c => {
+    const tp = months.reduce((a, ym) => a + (monthMap[ym][c]?.parcela || 0), 0);
+    const tj = months.reduce((a, ym) => a + (monthMap[ym][c]?.juros   || 0), 0);
+    const tt = tp + tj;
+    grandP += tp; grandJ += tj;
+
+    doc.setTextColor(...C.text);
+    doc.text(n(tp), cx + colNum - 1, y + rowH - 1, { align: 'right' });
+    cx += colNum;
+    doc.setTextColor(...C.warn);
+    doc.text(tj > 0 ? n(tj) : '—', cx + colNum - 1, y + rowH - 1, { align: 'right' });
+    cx += colNum;
+    doc.setTextColor(...C.accent2);
+    doc.text(n(tt), cx + colNum - 1, y + rowH - 1, { align: 'right' });
+    cx += colNum;
+  });
+
+  const grandTotal = grandP + grandJ;
+  doc.setTextColor(...C.text);
+  doc.text(n(grandP), cx + colNum - 1, y + rowH - 1, { align: 'right' });
+  cx += colNum;
+  doc.setTextColor(...C.warn);
+  doc.text(grandJ > 0 ? n(grandJ) : '—', cx + colNum - 1, y + rowH - 1, { align: 'right' });
+  cx += colNum;
+  doc.setFillColor(...C.accent);
+  doc.rect(cx, y + 1, colNum, rowH, 'F');
+  doc.setTextColor(...C.white);
+  doc.text(n(grandTotal), cx + colNum - 1, y + rowH - 1, { align: 'right' });
+
+  // ── Rodapé ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.muted);
+  doc.text('Sistema de Controle de Parcelamentos INSS', marginLeft, ph - 5);
+
+  const fileName = `resumo_mensal_inss${anoFiltro ? '_' + anoFiltro : ''}.pdf`;
+  doc.save(fileName);
   showToast('✓ Exportado: ' + fileName);
 }
 
