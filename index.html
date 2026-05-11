@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>INSS — Controle de Parcelamentos</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   :root {
@@ -550,7 +549,7 @@
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Adicione cada pagamento com valor e juros</div>
       </div>
       <div style="display:flex;gap:10px;">
-        <button class="btn btn-ghost" onclick="openImportPDF()">📄 Importar Extrato PDF</button>
+        <button class="btn btn-ghost" onclick="openImportXLSX()">📊 Importar Planilha XLSX</button>
         <button class="btn btn-primary" onclick="openNovaParcela()">+ Registrar Parcela</button>
       </div>
     </div>
@@ -693,18 +692,18 @@
   </div>
 </div>
 
-<!-- MODAL: IMPORTAR EXTRATO PDF -->
+<!-- MODAL: IMPORTAR PLANILHA XLSX -->
 <div class="modal-overlay" id="modal-import">
   <div class="modal" style="max-width:820px;">
     <div class="modal-header">
-      <div class="modal-title">Importar Extrato da Receita Federal</div>
+      <div class="modal-title">Importar Planilha de Pagamentos</div>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-import')">✕ Fechar</button>
     </div>
 
     <!-- STEP 1: Upload -->
     <div id="import-step1">
       <div class="alert-info alert" style="margin-bottom:20px;">
-        Faça upload do PDF gerado pela Receita Federal (Extrato do Parcelamento). O sistema detectará automaticamente todas as parcelas pagas.
+        Faça upload da planilha <strong>.xlsx</strong> com as colunas: <code style="background:rgba(56,139,253,0.15);padding:1px 5px;border-radius:3px;">Data · Valor · Amortizado · Juros</code>
       </div>
 
       <div class="form-group" style="margin-bottom:16px;">
@@ -714,20 +713,20 @@
         </select>
       </div>
 
-      <div id="drop-zone" onclick="document.getElementById('pdf-file-input').click()"
+      <div id="drop-zone" onclick="document.getElementById('xlsx-file-input').click()"
         style="border:2px dashed var(--border);border-radius:8px;padding:48px 24px;text-align:center;cursor:pointer;transition:all 0.2s;"
         ondragover="event.preventDefault();this.style.borderColor='var(--accent2)';this.style.background='var(--accent-glow)'"
         ondragleave="this.style.borderColor='var(--border)';this.style.background=''"
-        ondrop="handleDrop(event)">
-        <div style="font-size:32px;margin-bottom:12px;">📄</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Clique ou arraste o PDF aqui</div>
-        <div style="font-size:12px;color:var(--text-muted);">Arquivo: ExtratoParcelamento_*.pdf da Receita Federal</div>
-        <input type="file" id="pdf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(event)">
+        ondrop="handleXLSXDrop(event)">
+        <div style="font-size:32px;margin-bottom:12px;">📊</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Clique ou arraste o arquivo .xlsx aqui</div>
+        <div style="font-size:12px;color:var(--text-muted);">Planilha com colunas: Data, Valor, Amortizado, Juros</div>
+        <input type="file" id="xlsx-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleXLSXSelect(event)">
       </div>
 
       <div id="import-loading" style="display:none;text-align:center;padding:32px;">
         <div style="font-size:24px;margin-bottom:12px;animation:spin 1s linear infinite;display:inline-block;">⟳</div>
-        <div style="color:var(--text-muted);font-size:13px;">Lendo PDF e extraindo pagamentos...</div>
+        <div style="color:var(--text-muted);font-size:13px;">Lendo planilha e extraindo pagamentos...</div>
       </div>
     </div>
 
@@ -736,7 +735,7 @@
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <span style="font-size:20px;">✅</span>
         <div>
-          <div style="font-weight:600;font-size:14px;" id="import-summary-title">14 parcelas encontradas</div>
+          <div style="font-weight:600;font-size:14px;" id="import-summary-title"></div>
           <div style="font-size:12px;color:var(--text-muted);" id="import-summary-sub"></div>
         </div>
       </div>
@@ -754,9 +753,10 @@
           <thead style="position:sticky;top:0;background:var(--surface2);">
             <tr>
               <th style="padding:10px 12px;text-align:center;width:40px;"></th>
+              <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Nº</th>
               <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Data</th>
               <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Valor Total</th>
-              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Dívida Amortizada</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Amortizado</th>
               <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Juros</th>
               <th style="padding:10px 12px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Status</th>
             </tr>
@@ -1475,15 +1475,14 @@ function renderMensal() {
   `;
 }
 
-// ─── IMPORTAR EXTRATO PDF ─────────────────────────────────────
-let importedRows = []; // [{data, valorTotal, amortizado, juros, numParcela}]
+// ─── IMPORTAR PLANILHA XLSX ───────────────────────────────────
+let importedRows = [];
 
-function openImportPDF() {
+function openImportXLSX() {
   if (state.parcelamentos.length === 0) {
     alert('Cadastre ao menos um parcelamento antes de importar.');
     return;
   }
-  // Fill select
   const sel = document.getElementById('import-parcelamento');
   sel.innerHTML = '<option value="">Selecione o parcelamento...</option>';
   state.parcelamentos.forEach(p => {
@@ -1492,9 +1491,7 @@ function openImportPDF() {
     opt.textContent = p.nome;
     sel.appendChild(opt);
   });
-  // Auto-select if only one
   if (state.parcelamentos.length === 1) sel.value = state.parcelamentos[0].id;
-
   resetImport();
   openModal('modal-import');
 }
@@ -1505,108 +1502,126 @@ function resetImport() {
   document.getElementById('import-step2').style.display = 'none';
   document.getElementById('import-loading').style.display = 'none';
   document.getElementById('drop-zone').style.display = 'block';
-  document.getElementById('pdf-file-input').value = '';
+  document.getElementById('xlsx-file-input').value = '';
 }
 
-function handleDrop(e) {
+function handleXLSXDrop(e) {
   e.preventDefault();
   document.getElementById('drop-zone').style.borderColor = 'var(--border)';
   document.getElementById('drop-zone').style.background = '';
   const file = e.dataTransfer.files[0];
-  if (file && file.type === 'application/pdf') processPDF(file);
-  else alert('Por favor, selecione um arquivo PDF.');
+  if (file) processXLSX(file);
+  else alert('Por favor, selecione um arquivo .xlsx');
 }
 
-function handleFileSelect(e) {
+function handleXLSXSelect(e) {
   const file = e.target.files[0];
-  if (file) processPDF(file);
+  if (file) processXLSX(file);
 }
 
-async function processPDF(file) {
+// Converte serial de data do Excel → string ISO yyyy-mm-dd
+function excelSerialToISO(serial) {
+  // Excel epoch: 1 jan 1900, com bug do ano 1900 (dia 60 inexistente)
+  const epoch = new Date(1899, 11, 30); // 30 dez 1899
+  const ms = epoch.getTime() + serial * 86400000;
+  const d = new Date(ms);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function processXLSX(file) {
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('import-loading').style.display = 'block';
 
   try {
-    // Set worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      // Get items sorted by Y then X (top-to-bottom, left-to-right)
-      const items = content.items.slice().sort((a, b) => {
-        const ay = Math.round(a.transform[5]);
-        const by = Math.round(b.transform[5]);
-        if (ay !== by) return by - ay; // descending Y (PDF coords: 0 = bottom)
-        return a.transform[4] - b.transform[4];
+    // Carrega SheetJS dinamicamente
+    if (typeof XLSX === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Não foi possível carregar a biblioteca XLSX.'));
+        document.head.appendChild(s);
       });
-      fullText += items.map(i => i.str).join(' ') + '\n';
     }
 
-    const rows = parsePagamentosFromText(fullText);
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    // Lê como array de arrays (sem cabeçalho automático)
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-    if (rows.length === 0) {
-      alert('Nenhum pagamento encontrado no PDF. Verifique se é um Extrato de Parcelamento da Receita Federal com dados de Pagamentos selecionados.');
-      resetImport();
-      return;
+    if (raw.length < 2) throw new Error('Planilha vazia ou sem dados.');
+
+    // Identificar linha de cabeçalho: procura linha com "Data", "Valor", etc.
+    // Normaliza: minúsculas, sem acento
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    let headerRowIdx = 0;
+    let colData = -1, colValor = -1, colAmort = -1, colJuros = -1;
+
+    for (let r = 0; r < Math.min(5, raw.length); r++) {
+      const row = raw[r];
+      row.forEach((cell, c) => {
+        const n = norm(cell);
+        if (n === 'data') colData = c;
+        else if (n === 'valor' || n === 'valor total') colValor = c;
+        else if (n === 'amortizado' || n === 'divida amortizada' || n === 'amortizacao') colAmort = c;
+        else if (n === 'juros' || n === 'juros amortizado' || n === 'juros amortizados') colJuros = c;
+      });
+      if (colData >= 0 && colValor >= 0) { headerRowIdx = r; break; }
     }
+
+    if (colData < 0 || colValor < 0) {
+      throw new Error('Não encontrei colunas "Data" e "Valor" na planilha. Verifique os cabeçalhos.');
+    }
+
+    const rows = [];
+    for (let r = headerRowIdx + 1; r < raw.length; r++) {
+      const row = raw[r];
+      if (!row || row.every(c => c === null || c === '')) continue;
+
+      let rawDate = row[colData];
+      let isoDate;
+
+      if (typeof rawDate === 'number') {
+        isoDate = excelSerialToISO(rawDate);
+      } else if (rawDate instanceof Date) {
+        const yyyy = rawDate.getFullYear();
+        const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(rawDate.getDate()).padStart(2, '0');
+        isoDate = `${yyyy}-${mm}-${dd}`;
+      } else if (typeof rawDate === 'string' && rawDate.trim()) {
+        // Tenta dd/mm/yyyy ou yyyy-mm-dd
+        const mBR = rawDate.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        const mISO = rawDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (mBR) isoDate = `${mBR[3]}-${mBR[2]}-${mBR[1]}`;
+        else if (mISO) isoDate = rawDate.trim();
+        else continue;
+      } else continue;
+
+      const valorTotal = parseFloat(row[colValor]) || 0;
+      const amortizado = colAmort >= 0 ? (parseFloat(row[colAmort]) || 0) : valorTotal;
+      const juros = colJuros >= 0
+        ? (parseFloat(row[colJuros]) || 0)
+        : Math.max(0, Math.round((valorTotal - amortizado) * 100) / 100);
+
+      if (valorTotal > 0) {
+        rows.push({ numParcela: rows.length + 1, data: isoDate, valorTotal, amortizado, juros });
+      }
+    }
+
+    if (rows.length === 0) throw new Error('Nenhuma linha de pagamento encontrada. Verifique se a planilha tem dados abaixo do cabeçalho.');
 
     importedRows = rows;
     showImportPreview();
   } catch (err) {
     console.error(err);
-    alert('Erro ao ler o PDF: ' + err.message);
+    alert('Erro ao ler a planilha:\n' + err.message);
     resetImport();
   }
-}
-
-function parsePagamentosFromText(text) {
-  // Pattern: date dd/mm/yyyy followed by amounts like 209.474,55
-  // The extrato has: date | valor total | dívida amortizada | juros amortizado
-  const datePattern = /(\d{2}\/\d{2}\/\d{4})\s+([\d.,]+)\s+([\d.,]+)(?:\s+([\d.,]+))?/g;
-  const rows = [];
-  let numParcela = 0;
-  let match;
-
-  // Find "Pagamentos" section first to avoid header data
-  const pagIdx = text.indexOf('Pagamentos');
-  const searchText = pagIdx >= 0 ? text.substring(pagIdx) : text;
-
-  while ((match = datePattern.exec(searchText)) !== null) {
-    const [, dateStr, valorTotalStr, amortizadoStr, jurosStr] = match;
-
-    // Parse date dd/mm/yyyy → yyyy-mm-dd
-    const [d, m, y] = dateStr.split('/');
-    const isoDate = `${y}-${m}-${d}`;
-
-    const valorTotal = parseBRNum(valorTotalStr);
-    const amortizado = parseBRNum(amortizadoStr);
-    // Juros = valorTotal - amortizado (or explicit if present)
-    let juros = 0;
-    if (jurosStr) {
-      juros = parseBRNum(jurosStr);
-    } else {
-      juros = Math.max(0, valorTotal - amortizado);
-    }
-
-    // Sanity check: values should be > 0
-    if (valorTotal > 0 && amortizado > 0) {
-      numParcela++;
-      rows.push({ numParcela, data: isoDate, valorTotal, amortizado, juros });
-    }
-  }
-
-  return rows;
-}
-
-function parseBRNum(str) {
-  if (!str) return 0;
-  // Remove dots (thousands sep) and replace comma with dot
-  return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
 }
 
 function showImportPreview() {
@@ -1616,23 +1631,16 @@ function showImportPreview() {
 
   const pid = document.getElementById('import-parcelamento').value;
 
-  // Check which are already imported
-  const existingKeys = new Set(
-    state.parcelas.filter(p => p.parcelamentoId === pid).map(p => p.data + '_' + p.num)
-  );
-
   document.getElementById('import-summary-title').textContent =
-    `${importedRows.length} parcela${importedRows.length !== 1 ? 's' : ''} encontrada${importedRows.length !== 1 ? 's' : ''} no PDF`;
+    `${importedRows.length} parcela${importedRows.length !== 1 ? 's' : ''} encontrada${importedRows.length !== 1 ? 's' : ''} na planilha`;
   document.getElementById('import-summary-sub').textContent =
     `Período: ${fmtDate(importedRows[0]?.data)} a ${fmtDate(importedRows[importedRows.length-1]?.data)}`;
 
   const tbody = document.getElementById('import-preview-tbody');
   tbody.innerHTML = importedRows.map((row, idx) => {
-    const key = row.data + '_' + row.numParcela;
-    const alreadyExists = state.parcelas.some(p =>
+    const alreadyExists = pid && state.parcelas.some(p =>
       p.parcelamentoId === pid && p.data === row.data && Math.abs(p.valorPago - row.valorTotal) < 0.05
     );
-
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:9px 12px;text-align:center;">
         <input type="checkbox" class="import-check" data-idx="${idx}"
@@ -1640,6 +1648,7 @@ function showImportPreview() {
           onchange="updateImportCount()"
           style="cursor:pointer;width:16px;height:16px;accent-color:var(--accent2);">
       </td>
+      <td style="padding:9px 12px;font-family:var(--mono);color:var(--text-muted);">${row.numParcela}</td>
       <td style="padding:9px 12px;font-family:var(--mono);">${fmtDate(row.data)}</td>
       <td style="padding:9px 12px;text-align:right;font-family:var(--mono);color:var(--accent2);">${fmtBR(row.valorTotal)}</td>
       <td style="padding:9px 12px;text-align:right;font-family:var(--mono);">${fmtBR(row.amortizado)}</td>
@@ -1662,16 +1671,12 @@ function updateImportCount() {
 
   const already = selected.filter(c => {
     const row = importedRows[parseInt(c.dataset.idx)];
-    return state.parcelas.some(p =>
+    return pid && state.parcelas.some(p =>
       p.parcelamentoId === pid && p.data === row.data && Math.abs(p.valorPago - row.valorTotal) < 0.05
     );
   }).length;
 
-  const totalVal = selected.reduce((a, c) => {
-    const row = importedRows[parseInt(c.dataset.idx)];
-    return a + row.valorTotal;
-  }, 0);
-
+  const totalVal = selected.reduce((a, c) => a + importedRows[parseInt(c.dataset.idx)].valorTotal, 0);
   document.getElementById('import-count').textContent = selected.length;
   document.getElementById('import-existing').textContent = already;
   document.getElementById('import-total-val').textContent = fmtBR(totalVal);
@@ -1691,41 +1696,25 @@ function confirmImport() {
 
   const checks = [...document.querySelectorAll('.import-check')];
   const selected = checks.filter(c => c.checked).map(c => importedRows[parseInt(c.dataset.idx)]);
-
   if (selected.length === 0) { alert('Selecione ao menos uma parcela.'); return; }
 
-  // Figure out parcela numbers: sort by date and assign incrementally
-  // Starting from max existing num + 1 only for truly new ones
-  const existingNums = state.parcelas.filter(p => p.parcelamentoId === pid).map(p => p.num);
-  
-  // Sort selected by date
-  const sortedSelected = [...selected].sort((a, b) => new Date(a.data) - new Date(b.data));
-  
-  // Build a map from all PDF rows sorted by date → parcela number
-  const allSorted = [...importedRows].sort((a, b) => new Date(a.data) - new Date(b.data));
+  let added = 0, skipped = 0;
 
-  let added = 0;
-  let skipped = 0;
-
-  sortedSelected.forEach(row => {
-    // Skip exact duplicates
+  selected.forEach(row => {
     const isDup = state.parcelas.some(x =>
       x.parcelamentoId === pid && x.data === row.data && Math.abs(x.valorPago - row.valorTotal) < 0.05
     );
     if (isDup) { skipped++; return; }
 
-    // Assign parcela number based on position in full PDF list
-    const posInPDF = allSorted.findIndex(r => r.data === row.data && r.valorTotal === row.valorTotal) + 1;
-
     const proporcional = p.contratos.map(c => {
       const prop = c.valor / totalContratos;
-      return { nome: c.nome, valor: prop * row.amortizado, juros: prop * row.juros };
+      return { nome: c.nome, valor: Math.round(prop * row.amortizado * 100) / 100, juros: Math.round(prop * row.juros * 100) / 100 };
     });
 
     state.parcelas.push({
       id: genId(),
       parcelamentoId: pid,
-      num: posInPDF,
+      num: row.numParcela,
       data: row.data,
       valorPago: row.valorTotal,
       juros: row.juros,
@@ -1738,7 +1727,7 @@ function confirmImport() {
   closeModal('modal-import');
   renderTabelaParcelas();
   renderDashboard();
-  showToast(`✓ ${added} parcela${added !== 1 ? 's' : ''} importada${added !== 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} ignorada${skipped !== 1 ? 's' : ''}, já existiam)` : ''}`);
+  showToast(`✓ ${added} parcela${added !== 1 ? 's' : ''} importada${added !== 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} duplicada${skipped !== 1 ? 's' : ''} ignorada${skipped !== 1 ? 's' : ''})` : ''}`);
 }
 
 // ─── INIT ─────────────────────────────────────────────────────
