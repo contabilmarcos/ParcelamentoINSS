@@ -534,9 +534,12 @@
         <div style="font-size:15px;font-weight:600;">Resumo Mensal por Contrato</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Consolidado de todos os parcelamentos — parcela + juros por contrato em cada mês</div>
       </div>
-      <select id="filtro-ano" style="background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px 12px;font-size:13px;font-family:var(--sans);cursor:pointer;" onchange="renderMensal()">
-        <option value="">Todos os anos</option>
-      </select>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <select id="filtro-ano" style="background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px 12px;font-size:13px;font-family:var(--sans);cursor:pointer;" onchange="renderMensal()">
+          <option value="">Todos os anos</option>
+        </select>
+        <button class="btn btn-ghost" onclick="exportMensalXLSX()">⬇ Exportar XLSX</button>
+      </div>
     </div>
     <div id="mensal-content"></div>
   </div>
@@ -1473,6 +1476,187 @@ function renderMensal() {
       </div>
     </div>
   `;
+}
+
+// ─── EXPORTAR RESUMO MENSAL XLSX ──────────────────────────────
+async function exportMensalXLSX() {
+  // Carrega SheetJS se necessário
+  if (typeof XLSX === 'undefined') {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Não foi possível carregar a biblioteca XLSX.'));
+      document.head.appendChild(s);
+    });
+  }
+
+  const anoFiltro = document.getElementById('filtro-ano').value;
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const parcelas = state.parcelas.filter(p => {
+    if (!p.data) return false;
+    if (anoFiltro && p.data.split('-')[0] !== anoFiltro) return false;
+    return true;
+  });
+
+  if (parcelas.length === 0) {
+    alert('Nenhuma parcela no período selecionado para exportar.');
+    return;
+  }
+
+  // Coletar todos os contratos únicos
+  const allContracts = [];
+  state.parcelamentos.forEach(p => {
+    p.contratos.forEach(c => {
+      if (!allContracts.includes(c.nome)) allContracts.push(c.nome);
+    });
+  });
+
+  // Montar monthMap
+  const monthMap = {};
+  parcelas.forEach(parc => {
+    const ym = parc.data.substring(0, 7);
+    if (!monthMap[ym]) monthMap[ym] = {};
+    (parc.proporcional || []).forEach(prop => {
+      if (!monthMap[ym][prop.nome]) monthMap[ym][prop.nome] = { parcela: 0, juros: 0, total: 0 };
+      monthMap[ym][prop.nome].parcela += prop.valor || 0;
+      monthMap[ym][prop.nome].juros   += prop.juros || 0;
+      monthMap[ym][prop.nome].total   += (prop.valor || 0) + (prop.juros || 0);
+    });
+  });
+
+  const months = Object.keys(monthMap).sort();
+
+  function fmtYM(ym) {
+    const [y, m] = ym.split('-');
+    return meses[parseInt(m) - 1] + '/' + y;
+  }
+
+  // ── Montar cabeçalhos ──
+  // Linha 1: grupos
+  const header1 = ['Mês'];
+  allContracts.forEach(c => { header1.push(c, '', ''); });
+  header1.push('Total Geral', '', '');
+
+  // Linha 2: subgrupos
+  const header2 = [''];
+  allContracts.forEach(() => { header2.push('Parcela', 'Juros', 'Total'); });
+  header2.push('Parcelas', 'Juros', 'Total');
+
+  // ── Linhas de dados ──
+  const dataRows = months.map(ym => {
+    const row = [fmtYM(ym)];
+    let rowParcela = 0, rowJuros = 0;
+    allContracts.forEach(c => {
+      const d = monthMap[ym][c] || { parcela: 0, juros: 0, total: 0 };
+      row.push(
+        Math.round(d.parcela * 100) / 100,
+        Math.round(d.juros   * 100) / 100,
+        Math.round(d.total   * 100) / 100
+      );
+      rowParcela += d.parcela;
+      rowJuros   += d.juros;
+    });
+    row.push(
+      Math.round(rowParcela * 100) / 100,
+      Math.round(rowJuros   * 100) / 100,
+      Math.round((rowParcela + rowJuros) * 100) / 100
+    );
+    return row;
+  });
+
+  // ── Linha de totais ──
+  const totalRow = ['TOTAL'];
+  let sumP = 0, sumJ = 0;
+  allContracts.forEach(c => {
+    const tp = months.reduce((a, ym) => a + (monthMap[ym][c]?.parcela || 0), 0);
+    const tj = months.reduce((a, ym) => a + (monthMap[ym][c]?.juros   || 0), 0);
+    totalRow.push(
+      Math.round(tp * 100) / 100,
+      Math.round(tj * 100) / 100,
+      Math.round((tp + tj) * 100) / 100
+    );
+    sumP += tp; sumJ += tj;
+  });
+  totalRow.push(
+    Math.round(sumP * 100) / 100,
+    Math.round(sumJ * 100) / 100,
+    Math.round((sumP + sumJ) * 100) / 100
+  );
+
+  // ── Criar workbook ──
+  const wb = XLSX.utils.book_new();
+  const wsData = [header1, header2, ...dataRows, totalRow];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // ── Larguras de coluna ──
+  ws['!cols'] = [{ wch: 18 }]; // Mês
+  allContracts.forEach(() => { ws['!cols'].push({ wch: 16 }, { wch: 14 }, { wch: 16 }); });
+  ws['!cols'].push({ wch: 16 }, { wch: 14 }, { wch: 16 });
+
+  // ── Mesclar células do cabeçalho (grupos) ──
+  ws['!merges'] = [];
+  // "Mês" já ocupa 1 célula
+  let col = 1;
+  allContracts.forEach(() => {
+    ws['!merges'].push({ s: { r: 0, c: col }, e: { r: 0, c: col + 2 } });
+    col += 3;
+  });
+  // "Total Geral"
+  ws['!merges'].push({ s: { r: 0, c: col }, e: { r: 0, c: col + 2 } });
+
+  // ── Estilos via SheetJS (formato de célula para números) ──
+  const numFmt = '#,##0.00';
+  const totalCols = 1 + allContracts.length * 3 + 3;
+  for (let r = 2; r < wsData.length; r++) {
+    for (let c = 1; c < totalCols; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (ws[addr]) {
+        ws[addr].z = numFmt;
+        // Última linha = totais: negrito via comentário (SheetJS community não tem estilos completos)
+      }
+    }
+  }
+
+  // ── Nome da aba e arquivo ──
+  const sheetName = 'Resumo Mensal';
+  const fileName  = `resumo_mensal_inss${anoFiltro ? '_' + anoFiltro : ''}.xlsx`;
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  // ── Segunda aba: dados brutos de parcelas ──
+  const rawHeader = ['Data', 'Parcelamento', 'Nº Parcela', 'Valor Pago', 'Juros'];
+  allContracts.forEach(c => rawHeader.push(`Parcela ${c}`, `Juros ${c}`));
+
+  const rawRows = [...state.parcelas]
+    .filter(p => !anoFiltro || (p.data && p.data.startsWith(anoFiltro)))
+    .sort((a, b) => new Date(a.data) - new Date(b.data))
+    .map(p => {
+      const parc = state.parcelamentos.find(x => x.id === p.parcelamentoId);
+      const row = [
+        fmtDate(p.data),
+        parc ? parc.nome : '—',
+        p.num,
+        Math.round(p.valorPago * 100) / 100,
+        Math.round((p.juros || 0) * 100) / 100
+      ];
+      allContracts.forEach(c => {
+        const prop = (p.proporcional || []).find(x => x.nome === c);
+        row.push(
+          prop ? Math.round(prop.valor * 100) / 100 : 0,
+          prop ? Math.round(prop.juros * 100) / 100 : 0
+        );
+      });
+      return row;
+    });
+
+  const wsRaw = XLSX.utils.aoa_to_sheet([rawHeader, ...rawRows]);
+  wsRaw['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 10 }, { wch: 16 }, { wch: 14 }];
+  allContracts.forEach(() => wsRaw['!cols'].push({ wch: 16 }, { wch: 14 }));
+  XLSX.utils.book_append_sheet(wb, wsRaw, 'Parcelas Detalhadas');
+
+  XLSX.writeFile(wb, fileName);
+  showToast('✓ Exportado: ' + fileName);
 }
 
 // ─── IMPORTAR PLANILHA XLSX ───────────────────────────────────
