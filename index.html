@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>INSS — Controle de Parcelamentos</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   :root {
     --bg: #0d1117;
     --surface: #161b22;
@@ -542,12 +544,15 @@
 
   <!-- PARCELAS PAGAS -->
   <div class="panel" id="panel-parcelas">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
       <div>
         <div style="font-size:15px;font-weight:600;">Registro de Parcelas Pagas</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Adicione cada pagamento com valor e juros</div>
       </div>
-      <button class="btn btn-primary" onclick="openNovaParcela()">+ Registrar Parcela</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" onclick="openImportPDF()">📄 Importar Extrato PDF</button>
+        <button class="btn btn-primary" onclick="openNovaParcela()">+ Registrar Parcela</button>
+      </div>
     </div>
     <div class="table-wrapper">
       <table id="table-parcelas">
@@ -684,6 +689,96 @@
     <div style="display:flex; justify-content:flex-end; gap:10px;">
       <button class="btn btn-ghost" onclick="closeModal('modal-parcela')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveParcela()">Salvar Parcela</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: IMPORTAR EXTRATO PDF -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal" style="max-width:820px;">
+    <div class="modal-header">
+      <div class="modal-title">Importar Extrato da Receita Federal</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-import')">✕ Fechar</button>
+    </div>
+
+    <!-- STEP 1: Upload -->
+    <div id="import-step1">
+      <div class="alert-info alert" style="margin-bottom:20px;">
+        Faça upload do PDF gerado pela Receita Federal (Extrato do Parcelamento). O sistema detectará automaticamente todas as parcelas pagas.
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label>Parcelamento de destino</label>
+        <select id="import-parcelamento" style="background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:9px 12px;font-size:13px;font-family:var(--mono);width:100%;">
+          <option value="">Selecione o parcelamento...</option>
+        </select>
+      </div>
+
+      <div id="drop-zone" onclick="document.getElementById('pdf-file-input').click()"
+        style="border:2px dashed var(--border);border-radius:8px;padding:48px 24px;text-align:center;cursor:pointer;transition:all 0.2s;"
+        ondragover="event.preventDefault();this.style.borderColor='var(--accent2)';this.style.background='var(--accent-glow)'"
+        ondragleave="this.style.borderColor='var(--border)';this.style.background=''"
+        ondrop="handleDrop(event)">
+        <div style="font-size:32px;margin-bottom:12px;">📄</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Clique ou arraste o PDF aqui</div>
+        <div style="font-size:12px;color:var(--text-muted);">Arquivo: ExtratoParcelamento_*.pdf da Receita Federal</div>
+        <input type="file" id="pdf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(event)">
+      </div>
+
+      <div id="import-loading" style="display:none;text-align:center;padding:32px;">
+        <div style="font-size:24px;margin-bottom:12px;animation:spin 1s linear infinite;display:inline-block;">⟳</div>
+        <div style="color:var(--text-muted);font-size:13px;">Lendo PDF e extraindo pagamentos...</div>
+      </div>
+    </div>
+
+    <!-- STEP 2: Preview & Confirm -->
+    <div id="import-step2" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="font-size:20px;">✅</span>
+        <div>
+          <div style="font-weight:600;font-size:14px;" id="import-summary-title">14 parcelas encontradas</div>
+          <div style="font-size:12px;color:var(--text-muted);" id="import-summary-sub"></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:var(--text-muted);">Marque as parcelas que deseja importar:</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="selectAllImport(true)">Selecionar todas</button>
+          <button class="btn btn-ghost btn-sm" onclick="selectAllImport(false)">Desmarcar todas</button>
+        </div>
+      </div>
+
+      <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead style="position:sticky;top:0;background:var(--surface2);">
+            <tr>
+              <th style="padding:10px 12px;text-align:center;width:40px;"></th>
+              <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Data</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Valor Total</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Dívida Amortizada</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Juros</th>
+              <th style="padding:10px 12px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Status</th>
+            </tr>
+          </thead>
+          <tbody id="import-preview-tbody"></tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;gap:24px;flex-wrap:wrap;">
+        <div><span style="font-size:11px;color:var(--text-muted);">SELECIONADAS</span><br><span id="import-count" style="font-family:var(--mono);font-weight:700;color:var(--accent2);">0</span></div>
+        <div><span style="font-size:11px;color:var(--text-muted);">JÁ CADASTRADAS</span><br><span id="import-existing" style="font-family:var(--mono);color:var(--warn);">0</span></div>
+        <div><span style="font-size:11px;color:var(--text-muted);">TOTAL SELECIONADO</span><br><span id="import-total-val" style="font-family:var(--mono);color:var(--text);">R$ 0,00</span></div>
+      </div>
+
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;">
+        <button class="btn btn-ghost" onclick="resetImport()">← Voltar</button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" onclick="closeModal('modal-import')">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmImport()">Importar Selecionadas</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1378,6 +1473,272 @@ function renderMensal() {
       </div>
     </div>
   `;
+}
+
+// ─── IMPORTAR EXTRATO PDF ─────────────────────────────────────
+let importedRows = []; // [{data, valorTotal, amortizado, juros, numParcela}]
+
+function openImportPDF() {
+  if (state.parcelamentos.length === 0) {
+    alert('Cadastre ao menos um parcelamento antes de importar.');
+    return;
+  }
+  // Fill select
+  const sel = document.getElementById('import-parcelamento');
+  sel.innerHTML = '<option value="">Selecione o parcelamento...</option>';
+  state.parcelamentos.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.nome;
+    sel.appendChild(opt);
+  });
+  // Auto-select if only one
+  if (state.parcelamentos.length === 1) sel.value = state.parcelamentos[0].id;
+
+  resetImport();
+  openModal('modal-import');
+}
+
+function resetImport() {
+  importedRows = [];
+  document.getElementById('import-step1').style.display = 'block';
+  document.getElementById('import-step2').style.display = 'none';
+  document.getElementById('import-loading').style.display = 'none';
+  document.getElementById('drop-zone').style.display = 'block';
+  document.getElementById('pdf-file-input').value = '';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').style.borderColor = 'var(--border)';
+  document.getElementById('drop-zone').style.background = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') processPDF(file);
+  else alert('Por favor, selecione um arquivo PDF.');
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processPDF(file);
+}
+
+async function processPDF(file) {
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('import-loading').style.display = 'block';
+
+  try {
+    // Set worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      // Get items sorted by Y then X (top-to-bottom, left-to-right)
+      const items = content.items.slice().sort((a, b) => {
+        const ay = Math.round(a.transform[5]);
+        const by = Math.round(b.transform[5]);
+        if (ay !== by) return by - ay; // descending Y (PDF coords: 0 = bottom)
+        return a.transform[4] - b.transform[4];
+      });
+      fullText += items.map(i => i.str).join(' ') + '\n';
+    }
+
+    const rows = parsePagamentosFromText(fullText);
+
+    if (rows.length === 0) {
+      alert('Nenhum pagamento encontrado no PDF. Verifique se é um Extrato de Parcelamento da Receita Federal com dados de Pagamentos selecionados.');
+      resetImport();
+      return;
+    }
+
+    importedRows = rows;
+    showImportPreview();
+  } catch (err) {
+    console.error(err);
+    alert('Erro ao ler o PDF: ' + err.message);
+    resetImport();
+  }
+}
+
+function parsePagamentosFromText(text) {
+  // Pattern: date dd/mm/yyyy followed by amounts like 209.474,55
+  // The extrato has: date | valor total | dívida amortizada | juros amortizado
+  const datePattern = /(\d{2}\/\d{2}\/\d{4})\s+([\d.,]+)\s+([\d.,]+)(?:\s+([\d.,]+))?/g;
+  const rows = [];
+  let numParcela = 0;
+  let match;
+
+  // Find "Pagamentos" section first to avoid header data
+  const pagIdx = text.indexOf('Pagamentos');
+  const searchText = pagIdx >= 0 ? text.substring(pagIdx) : text;
+
+  while ((match = datePattern.exec(searchText)) !== null) {
+    const [, dateStr, valorTotalStr, amortizadoStr, jurosStr] = match;
+
+    // Parse date dd/mm/yyyy → yyyy-mm-dd
+    const [d, m, y] = dateStr.split('/');
+    const isoDate = `${y}-${m}-${d}`;
+
+    const valorTotal = parseBRNum(valorTotalStr);
+    const amortizado = parseBRNum(amortizadoStr);
+    // Juros = valorTotal - amortizado (or explicit if present)
+    let juros = 0;
+    if (jurosStr) {
+      juros = parseBRNum(jurosStr);
+    } else {
+      juros = Math.max(0, valorTotal - amortizado);
+    }
+
+    // Sanity check: values should be > 0
+    if (valorTotal > 0 && amortizado > 0) {
+      numParcela++;
+      rows.push({ numParcela, data: isoDate, valorTotal, amortizado, juros });
+    }
+  }
+
+  return rows;
+}
+
+function parseBRNum(str) {
+  if (!str) return 0;
+  // Remove dots (thousands sep) and replace comma with dot
+  return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+function showImportPreview() {
+  document.getElementById('import-loading').style.display = 'none';
+  document.getElementById('import-step1').style.display = 'none';
+  document.getElementById('import-step2').style.display = 'block';
+
+  const pid = document.getElementById('import-parcelamento').value;
+
+  // Check which are already imported
+  const existingKeys = new Set(
+    state.parcelas.filter(p => p.parcelamentoId === pid).map(p => p.data + '_' + p.num)
+  );
+
+  document.getElementById('import-summary-title').textContent =
+    `${importedRows.length} parcela${importedRows.length !== 1 ? 's' : ''} encontrada${importedRows.length !== 1 ? 's' : ''} no PDF`;
+  document.getElementById('import-summary-sub').textContent =
+    `Período: ${fmtDate(importedRows[0]?.data)} a ${fmtDate(importedRows[importedRows.length-1]?.data)}`;
+
+  const tbody = document.getElementById('import-preview-tbody');
+  tbody.innerHTML = importedRows.map((row, idx) => {
+    const key = row.data + '_' + row.numParcela;
+    const alreadyExists = state.parcelas.some(p =>
+      p.parcelamentoId === pid && p.data === row.data && Math.abs(p.valorPago - row.valorTotal) < 0.05
+    );
+
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:9px 12px;text-align:center;">
+        <input type="checkbox" class="import-check" data-idx="${idx}"
+          ${alreadyExists ? '' : 'checked'}
+          onchange="updateImportCount()"
+          style="cursor:pointer;width:16px;height:16px;accent-color:var(--accent2);">
+      </td>
+      <td style="padding:9px 12px;font-family:var(--mono);">${fmtDate(row.data)}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:var(--mono);color:var(--accent2);">${fmtBR(row.valorTotal)}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:var(--mono);">${fmtBR(row.amortizado)}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:var(--mono);color:${row.juros > 0 ? 'var(--warn)' : 'var(--text-dim)'};">${row.juros > 0 ? fmtBR(row.juros) : '—'}</td>
+      <td style="padding:9px 12px;text-align:center;">
+        ${alreadyExists
+          ? '<span style="font-size:11px;background:rgba(210,153,34,0.15);color:var(--warn);padding:2px 8px;border-radius:100px;">Já cadastrada</span>'
+          : '<span style="font-size:11px;background:rgba(63,182,139,0.15);color:var(--accent2);padding:2px 8px;border-radius:100px;">Nova</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  updateImportCount();
+}
+
+function updateImportCount() {
+  const checks = [...document.querySelectorAll('.import-check')];
+  const selected = checks.filter(c => c.checked);
+  const pid = document.getElementById('import-parcelamento').value;
+
+  const already = selected.filter(c => {
+    const row = importedRows[parseInt(c.dataset.idx)];
+    return state.parcelas.some(p =>
+      p.parcelamentoId === pid && p.data === row.data && Math.abs(p.valorPago - row.valorTotal) < 0.05
+    );
+  }).length;
+
+  const totalVal = selected.reduce((a, c) => {
+    const row = importedRows[parseInt(c.dataset.idx)];
+    return a + row.valorTotal;
+  }, 0);
+
+  document.getElementById('import-count').textContent = selected.length;
+  document.getElementById('import-existing').textContent = already;
+  document.getElementById('import-total-val').textContent = fmtBR(totalVal);
+}
+
+function selectAllImport(val) {
+  document.querySelectorAll('.import-check').forEach(c => c.checked = val);
+  updateImportCount();
+}
+
+function confirmImport() {
+  const pid = document.getElementById('import-parcelamento').value;
+  if (!pid) { alert('Selecione o parcelamento de destino.'); return; }
+
+  const p = state.parcelamentos.find(x => x.id === pid);
+  const totalContratos = p.contratos.reduce((a, c) => a + c.valor, 0);
+
+  const checks = [...document.querySelectorAll('.import-check')];
+  const selected = checks.filter(c => c.checked).map(c => importedRows[parseInt(c.dataset.idx)]);
+
+  if (selected.length === 0) { alert('Selecione ao menos uma parcela.'); return; }
+
+  // Figure out parcela numbers: sort by date and assign incrementally
+  // Starting from max existing num + 1 only for truly new ones
+  const existingNums = state.parcelas.filter(p => p.parcelamentoId === pid).map(p => p.num);
+  
+  // Sort selected by date
+  const sortedSelected = [...selected].sort((a, b) => new Date(a.data) - new Date(b.data));
+  
+  // Build a map from all PDF rows sorted by date → parcela number
+  const allSorted = [...importedRows].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+  let added = 0;
+  let skipped = 0;
+
+  sortedSelected.forEach(row => {
+    // Skip exact duplicates
+    const isDup = state.parcelas.some(x =>
+      x.parcelamentoId === pid && x.data === row.data && Math.abs(x.valorPago - row.valorTotal) < 0.05
+    );
+    if (isDup) { skipped++; return; }
+
+    // Assign parcela number based on position in full PDF list
+    const posInPDF = allSorted.findIndex(r => r.data === row.data && r.valorTotal === row.valorTotal) + 1;
+
+    const proporcional = p.contratos.map(c => {
+      const prop = c.valor / totalContratos;
+      return { nome: c.nome, valor: prop * row.amortizado, juros: prop * row.juros };
+    });
+
+    state.parcelas.push({
+      id: genId(),
+      parcelamentoId: pid,
+      num: posInPDF,
+      data: row.data,
+      valorPago: row.valorTotal,
+      juros: row.juros,
+      proporcional
+    });
+    added++;
+  });
+
+  saveState();
+  closeModal('modal-import');
+  renderTabelaParcelas();
+  renderDashboard();
+  showToast(`✓ ${added} parcela${added !== 1 ? 's' : ''} importada${added !== 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} ignorada${skipped !== 1 ? 's' : ''}, já existiam)` : ''}`);
 }
 
 // ─── INIT ─────────────────────────────────────────────────────
